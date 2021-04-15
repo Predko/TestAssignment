@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.IO;
 using System.Text;
 
 namespace TestAssignment
@@ -26,21 +27,22 @@ using static Console;
 
         static void Main(string[] args)
         {
-            string[] lines = {"B=[5 2 4; 0 2 -1; 3 -5 -4]\r\n",
-                              "E =[-6 -5 -8; -1 -1 -10; 10 0 -7]\r\n",
-                              "R =[-1 -7 6; -2 9 -4; 6 -10 2]\r\n",
-                              "\r\n",
-                              "R + E * R * B + B\r\n"};
-
             int lineNumber = 0;
 
             MatrixReadErrors error;
 
+            // Имя переменной для присвоения.
             string nameVar = null;
 
-            foreach (string input in lines)
+            string input;
+
+            Tokens tokens = new Tokens(ErrorMessage);
+
+            while ((input = ReadLine()) != null)
             {
-                string[] sa = GetTokens(input);
+                //string[] sa = GetTokens(input);
+                
+                string[] sa = tokens.GetTokens(input);
 
                 lineNumber++;
 
@@ -66,7 +68,7 @@ using static Console;
                             else
                             {
                                 // Попытка использовать неинициализированную переменную.
-                                Error.WriteLine($"Exception caught: IllegalArgumentException. Can't read matrix. line: {lineNumber}");
+                                ErrorMessage($"Exception caught: IllegalArgumentException. Can't read matrix. line: {lineNumber}");
 
                                 return;
                             }
@@ -102,7 +104,7 @@ using static Console;
 
                             if (result == null)
                             {
-                                Error.WriteLine($"Exception caught: IllegalArgumentException. Can't perform operation {op}. line: {lineNumber}");
+                                ErrorMessage($"Exception caught: IllegalArgumentException. Can't perform operation '{op}'. line: {lineNumber}");
 
                                 return;
                             }
@@ -122,7 +124,7 @@ using static Console;
                     {
                         while (operations.Count != 0)
                         {
-                            char op = operations.Pop();
+                            char op = operations.Peek();
 
                             if (op == '=')
                             {
@@ -130,11 +132,13 @@ using static Console;
                                 break;
                             }
 
+                            op = operations.Pop();
+
                             Matrix result = PerformOperation(op, lineNumber);
 
                             if (result == null)
                             {
-                                Error.WriteLine($"Exception caught: IllegalArgumentException. Can't perform operation {op}. line: {lineNumber}");
+                                ErrorMessage($"Exception caught: IllegalArgumentException. Can't perform operation '{op}'. line: {lineNumber}");
 
                                 return;
                             }
@@ -159,7 +163,7 @@ using static Console;
 
                                 if (result == null)
                                 {
-                                    Error.WriteLine($"Exception caught: IllegalArgumentException. Can't perform operation {op}. line: {lineNumber}");
+                                    ErrorMessage($"Exception caught: IllegalArgumentException. Can't perform operation '{op}'. line: {lineNumber}");
 
                                     return;
                                 }
@@ -177,7 +181,7 @@ using static Console;
 
                         if ((m = GetMatrix(token, out error)) == null)
                         {
-                            Error.WriteLine("Exception caught: IllegalArgumentException. Can't read matrix.");
+                            ErrorMessage("Exception caught: IllegalArgumentException. Can't read matrix.");
 
                             return;
                         }
@@ -190,16 +194,26 @@ using static Console;
             }
         }
 
+        public static void ErrorMessage(string s)
+        {
+            var standardError = new StreamWriter(OpenStandardError());
+            standardError.AutoFlush = true;
+            SetError(standardError);
+
+            Error.WriteLine(s);
+        }
+
         private static Matrix PerformOperation(char op, int lineNumber)
         {
             Matrix result;
             if (stackMatrices.Count < 2)
             {
-                Error.WriteLine($"Exception caught: IllegalArgumentException. Can't perform operation '*'. line: {lineNumber}");
+                ErrorMessage($"Exception caught: IllegalArgumentException. Can't perform operation '*'. line: {lineNumber}");
             }
 
-            Matrix m1 = stackMatrices.Pop();
+            // В стеке матрицы размещены в обратном порядке.
             Matrix m2 = stackMatrices.Pop();
+            Matrix m1 = stackMatrices.Pop();
 
             result = op switch
             {
@@ -225,87 +239,10 @@ using static Console;
 
 
         /// <summary>
-        /// Разбивает строку на массив строк - токенов.
-        /// </summary>
-        /// <param name="input">Исходная строка.</param>
-        /// <returns>Массив токенов.</returns>
-        private static string[] GetTokens(string input)
-        {
-            List<string> strArr = new();
-
-            int beginIndex = 0;
-
-            int i = 0;
-
-            while (i < input.Length)
-            {
-                switch (input[i])
-                {
-                    case '=':
-                    case '+':
-                    case '-':
-                    case '*':
-                        strArr.Add(input[beginIndex..i].Trim());
-                        strArr.Add(input[i].ToString());
-
-                        beginIndex = i + 1;
-
-                        break;
-
-                    case '[':
-
-                        int endI = input.IndexOf(']', i + 1);
-
-                        if (endI == -1)
-                        {
-                            Error.WriteLine("Exception caught: IllegalArgumentException. Can't read matrix.");
-
-                            return null;
-                        }
-
-                        strArr.Add(input.Substring(beginIndex, endI - i + 1).Trim());
-
-                        beginIndex = endI + 1;
-
-                        i = endI;
-
-                        break;
-
-                    case '\r':
-                    case '\n':
-
-                        if (beginIndex != i)
-                        {
-                            strArr.Add(input[beginIndex..i].Trim());
-                        }
-
-                        // Переходим на конец строки.
-                        i = input.Length - 1;
-
-                        beginIndex = input.Length;
-
-                        break;
-                }
-
-                i++;
-            }
-
-            if (beginIndex<input.Length)
-            {
-                strArr.Add(input[beginIndex..].Trim());
-
-            }
-            
-            strArr.Add("\n");
-
-            return strArr.ToArray();
-        }
-
-        /// <summary>
         /// Состояние ошибки чтения матрицы из строки.
         /// </summary>
-        enum MatrixReadErrors { NotMatrix, NotInt, NumbColumns, ErrorNotFound }; 
-        
+        enum MatrixReadErrors { NotMatrix, NotInt, NumbColumns, ErrorNotFound };
+
         /// <summary>
         /// Определяет, является ли строка матрицей, если да читает её и создаёт объект типа Matrix.
         /// </summary>
@@ -359,7 +296,228 @@ using static Console;
 
             return m;
         }
+    }
 
+    /// <summary>
+    /// Класс определяет объект, позволяющий разобрать входную строку на токены,
+    /// для последующего анализа.
+    /// Типы токенов:
+    /// - имя переменной - любой набор символов кроме пробулов знаков табуляций.
+    ///   Допускаются знаки операций и символ начала матрицы, если они не являются первым символом имени.
+    /// - знаки операций: '+', '-', '*'.
+    /// - знак присвоения: '='
+    /// - признак конца последовательности токенов: '\n'
+    /// </summary>
+    public class Tokens
+    {
+        /// <summary>
+        /// Типы токенов.
+        /// </summary>
+        private enum TokenType { Operation, NoToken, Name, Matrix }
+
+        /// <summary>
+        /// Список создаваемых токенов.
+        /// </summary>
+        private readonly List<string> strArr = new();
+
+        /// <summary>
+        /// Текущий индекс символа во входной строке.
+        /// </summary>
+        private int currentIndex = 0;
+
+        /// <summary>
+        /// Предыдущий токен.
+        /// </summary>
+        private TokenType previousToken;
+
+        /// <summary>
+        /// Входная строка.
+        /// </summary>
+        private string input;
+
+        /// <summary>
+        /// Метод для вывода сообщения об ошибке.
+        /// </summary>
+        private readonly Action<string> ErrorMessage;
+
+        public Tokens(Action<string> errorMessage)
+        {
+            ErrorMessage = errorMessage;
+        }
+
+        /// <summary>
+        /// Разбивает строку на массив строк - токенов.
+        /// </summary>
+        /// <param name="input">Исходная строка.</param>
+        /// <returns>Массив токенов или null если произошла ошибка.</returns>
+        public string[] GetTokens(string inputString)
+        {
+            strArr.Clear();
+
+            input = inputString;
+
+            currentIndex = 0;
+
+            previousToken = TokenType.NoToken;
+
+            while (currentIndex < input.Length)
+            {
+                if (SkipSpaces() == false)
+                {
+                    // Достигнут конец строки.
+                    break;
+                }
+
+                switch (input[currentIndex])
+                {
+                    case '=':
+                    case '+':
+                    case '-':
+                    case '*':
+
+                        if (previousToken is TokenType.Operation
+                            || ((input[currentIndex] == '=') && (previousToken is not TokenType.Name)))
+                        {
+                            ErrorMessage("Exception caught: IllegalArgumentException. Incorrect syntax.");
+
+                            return null;
+                        }
+
+                        // Токен - знак операции.
+                        OperationToken();
+
+                        previousToken = TokenType.Operation;
+
+                        break;
+
+                    case '[':
+                        // Токен - определяет матрицу.
+                        if (previousToken is not TokenType.Operation and not TokenType.NoToken)
+                        {
+                            // Между токенами именами и матрицами должны быть знаки операций
+                            ErrorMessage("Exception caught: IllegalArgumentException. IncorrectlSyntax");
+                        }
+
+                        if (MatrixToken() == false)
+                        {
+                            ErrorMessage("Exception caught: IllegalArgumentException. Can't read matrix.");
+
+                            return null;
+                        }
+
+                        previousToken = TokenType.Matrix;
+
+                        break;
+
+                    case '\r':
+                    case '\n':
+                        // Последний токен.
+                        LastToken();
+
+                        break;
+
+                    case '/':
+                        // Если два символа '/' - комментарий до конца строки.
+                        CommentToken();
+
+                        break;
+
+                    default:
+                        // Токен - имя переменной.
+                        NameToken();
+
+                        previousToken = TokenType.Name;
+
+                        break;
+
+                }
+
+                currentIndex++;
+            }
+
+            strArr.Add("\n");
+
+            return strArr.ToArray();
+        }
+
+        /// <summary>
+        /// Метод пропускает все пробельные символы во входной строке.
+        /// Переводит указатель текущего символа на первый непробельный символ.
+        /// </summary>
+        /// <returns>true - если найден непробельный символ, false - если достигнут конец строки.</returns>
+        private bool SkipSpaces()
+        {
+            for (; currentIndex < input.Length; currentIndex++)
+            {
+                if (input[currentIndex] != ' ' && input[currentIndex] != '\t')
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Токен - имя переменная
+        /// </summary>
+        private void NameToken()
+        {
+            int endIndex = input.IndexOfAny(new char[] { ' ', '\t', '\r', '\n', '=', '+', '-', '*', '/' }, currentIndex);
+
+            if (endIndex == -1)
+            {
+                // Переменная до конца строки.
+                endIndex = input.Length;
+            }
+
+            strArr.Add(input[currentIndex..endIndex].Trim());
+
+            currentIndex = endIndex - 1;
+        }
+
+        /// <summary>
+        /// Токен - знак операции.
+        /// </summary>
+        private void OperationToken() => strArr.Add(input[currentIndex].ToString());
+
+        /// <summary>
+        /// Токен - комментарий. Не сохраняется в выходном списке токенов.
+        /// </summary>
+        private void CommentToken()
+        {
+            if (currentIndex < (input.Length - 1) && input[currentIndex + 1] == '/')
+            {
+                LastToken();
+            }
+        }
+
+        /// <summary>
+        /// Последний токен в строке. Обычно, символ конца строки. Не сохраняется в выходном списке токенов.
+        /// </summary>
+        private void LastToken() => currentIndex = input.Length - 1;
+
+        /// <summary>
+        /// Токен определяет матрицу.
+        /// </summary>
+        /// <returns>true - если токен матрицы правильный, false - если токен имеет неверный синтаксис.</returns>
+        private bool MatrixToken()
+        {
+            int endIndex = input.IndexOf(']', currentIndex);
+
+            if (endIndex == -1)
+            {
+                return false;
+            }
+
+            endIndex++;
+
+            strArr.Add(input[currentIndex..endIndex].Trim());
+
+            currentIndex = endIndex - 1;
+
+            return true;
+        }
     }
 
     public class Vector: IEnumerable<int>
@@ -440,6 +598,8 @@ using static Console;
                 s.Append(' ');
             }
 
+            s.Remove(s.Length - 2, 2);
+
             s.Append(']');
 
             return s.ToString();
@@ -481,7 +641,7 @@ using static Console;
 
             int[] vc = new int[Columns];
 
-            for (int i = 0; i != Rows; i++)
+            for (int i = 0; i != nColumns; i++)
             {
                 vc[i] = elements[row, i];
             }

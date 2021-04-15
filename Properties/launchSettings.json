@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "TestAssignment": {
+      "commandName": "Project",
+      "commandLineArgs": "< 10.txt"
+    }
+  }
+}
